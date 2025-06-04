@@ -41,17 +41,17 @@ exports.likePost = async (req, res) => {
   }
 };
 
-exports.commentPost = async (req, res) => {
-  const { text } = req.body;
-  try {
-    const post = await Post.findById(req.params.id);
-    post.comments.push({ user: req.user._id, text });
-    await post.save();
-    res.json({ message: "Comment added" });
-  } catch (err) {
-    res.status(500).json({ message: "Server error" });
-  }
-};
+// exports.commentPost = async (req, res) => {
+//   const { text } = req.body;
+//   try {
+//     const post = await Post.findById(req.params.id);
+//     post.comments.push({ user: req.user._id, text });
+//     await post.save();
+//     res.json({ message: "Comment added" });
+//   } catch (err) {
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
 
 exports.deletePost = async (req, res) => {
   try {
