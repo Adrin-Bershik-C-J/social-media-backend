@@ -71,3 +71,27 @@ exports.toggleFollow = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+exports.getFollowing = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).populate(
+      "following",
+      "name username"
+    );
+    res.json(user.following);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch following users" });
+  }
+};
+
+exports.getFollowers = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).populate(
+      "followers",
+      "name username"
+    );
+    res.json(user.followers);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch followers" });
+  }
+};
