@@ -19,51 +19,55 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
-exports.followUser = async (req, res) => {
+exports.toggleFollow = async (req, res) => {
   const targetUserId = req.params.id;
   const currentUserId = req.user._id;
 
-  if (currentUserId.toString() === targetUserId)
+  // Prevent self-following
+  if (currentUserId.toString() === targetUserId) {
     return res.status(400).json({ message: "You can't follow yourself" });
-
-  try {
-    const targetUser = await User.findById(targetUserId);
-    const currentUser = await User.findById(currentUserId);
-
-    if (!targetUser.followers.includes(currentUserId)) {
-      targetUser.followers.push(currentUserId);
-      currentUser.following.push(targetUserId);
-
-      await targetUser.save();
-      await currentUser.save();
-      res.json({ message: "User followed" });
-    } else {
-      res.status(400).json({ message: "Already following" });
-    }
-  } catch (err) {
-    res.status(500).json({ message: "Server error" });
   }
-};
-
-exports.unfollowUser = async (req, res) => {
-  const targetUserId = req.params.id;
-  const currentUserId = req.user._id;
 
   try {
     const targetUser = await User.findById(targetUserId);
     const currentUser = await User.findById(currentUserId);
 
-    if (targetUser.followers.includes(currentUserId)) {
-      targetUser.followers.pull(currentUserId);
-      currentUser.following.pull(targetUserId);
+    // Check if target user exists
+    if (!targetUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-      await targetUser.save();
-      await currentUser.save();
-      res.json({ message: "User unfollowed" });
+    const isFollowing = currentUser.following.includes(targetUserId);
+
+    if (isFollowing) {
+      // Unfollow: Remove from both arrays
+      currentUser.following.pull(targetUserId);
+      targetUser.followers.pull(currentUserId);
+
+      await Promise.all([currentUser.save(), targetUser.save()]);
+
+      res.json({
+        message: "User unfollowed",
+        isFollowing: false,
+        followersCount: targetUser.followers.length,
+        followingCount: currentUser.following.length,
+      });
     } else {
-      res.status(400).json({ message: "Not following this user" });
+      // Follow: Add to both arrays
+      currentUser.following.push(targetUserId);
+      targetUser.followers.push(currentUserId);
+
+      await Promise.all([currentUser.save(), targetUser.save()]);
+
+      res.json({
+        message: "User followed",
+        isFollowing: true,
+        followersCount: targetUser.followers.length,
+        followingCount: currentUser.following.length,
+      });
     }
   } catch (err) {
+    console.error("Toggle follow error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
