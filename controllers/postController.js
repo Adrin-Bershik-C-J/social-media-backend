@@ -82,12 +82,11 @@ exports.createPost = async (req, res) => {
   }
 };
 
-//Posts of logged in user
 exports.getAllPosts = async (req, res) => {
   try {
     const posts = await Post.find({ user: req.user._id })
-      .populate("user", "username name")
-      .populate("comments.user", "username name")
+      .populate("user", "username name profilePicture")
+      .populate("comments.user", "username name profilePicture")
       .sort({ createdAt: -1 });
 
     const enrichedPosts = posts.map((post) => ({
@@ -176,8 +175,8 @@ exports.getFeedPosts = async (req, res) => {
     const hasMore = page < totalPages;
 
     const posts = await Post.find(filter)
-      .populate("user", "username name")
-      .populate("comments.user", "username name")
+      .populate("user", "username name profilePicture")
+      .populate("comments.user", "username name profilePicture")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);

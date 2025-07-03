@@ -47,7 +47,13 @@ exports.login = async (req, res) => {
 
     res.status(200).json({
       token,
-      user: { id: user._id, name: user.name, username: user.username },
+      user: {
+        id: user._id,
+        name: user.name,
+        username: user.username,
+        bio: user.bio, // ✅ ADD THIS LINE
+        profilePicture: user.profilePicture,
+      },
     });
   } catch (error) {
     res.status(500).json({ message: "Server error" });

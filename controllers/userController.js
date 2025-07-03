@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const cloudinary = require("cloudinary").v2;
 
 exports.getProfile = async (req, res) => {
   const user = req.user;
@@ -76,7 +77,7 @@ exports.getFollowing = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).populate(
       "following",
-      "name username"
+      "name username profilePicture"
     );
     res.json(user.following);
   } catch (error) {
@@ -88,10 +89,44 @@ exports.getFollowers = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).populate(
       "followers",
-      "name username"
+      "name username profilePicture"
     );
     res.json(user.followers);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch followers" });
+  }
+};
+
+exports.uploadProfilePicture = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No image uploaded." });
+    }
+
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: "profile_pictures",
+        resource_type: "image",
+      },
+      async (error, result) => {
+        if (error) {
+          console.error("Cloudinary error:", error);
+          return res.status(500).json({ message: "Upload failed." });
+        }
+
+        const updatedUser = await User.findByIdAndUpdate(
+          req.user._id,
+          { profilePicture: result.secure_url },
+          { new: true }
+        ).select("-password"); // exclude password
+
+        res.status(200).json(updatedUser);
+      }
+    );
+
+    stream.end(req.file.buffer);
+  } catch (err) {
+    console.error("Profile picture upload error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };

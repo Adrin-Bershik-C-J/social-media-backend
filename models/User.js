@@ -18,6 +18,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    profilePicture: {
+      type: String, // URL of the image stored in Cloudinary
+      default: "", // Or use a default avatar image link
+    },
     followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },

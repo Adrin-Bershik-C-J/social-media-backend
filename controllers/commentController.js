@@ -20,7 +20,7 @@ exports.createComment = async (req, res) => {
 exports.getPostComments = async (req, res) => {
   try {
     const comments = await Comment.find({ post: req.params.postId })
-      .populate("user", "username name")
+      .populate("user", "username name profilePicture")
       .populate("parent")
       .sort({ createdAt: 1 });
 
