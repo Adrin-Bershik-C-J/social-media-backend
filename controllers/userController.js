@@ -130,3 +130,17 @@ exports.uploadProfilePicture = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+exports.getHomeFollowers = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id)
+      .select("-password") // omit sensitive info
+      .populate("following", "_id") // only get _id from followed users
+      .populate("followers", "_id");
+
+    res.json(user);
+  } catch (err) {
+    console.error("Error fetching profile:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};

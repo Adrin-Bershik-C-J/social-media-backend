@@ -7,6 +7,7 @@ const {
   getFollowers,
   getFollowing,
   uploadProfilePicture,
+  getHomeFollowers,
 } = require("../controllers/userController");
 const protect = require("../middlewares/authMiddleware");
 const upload = require("../middlewares/upload");
@@ -22,5 +23,6 @@ router.put(
   upload.single("profilePic"),
   uploadProfilePicture
 );
+router.get("/getHomeFollowers", protect, getHomeFollowers);
 
 module.exports = router;
