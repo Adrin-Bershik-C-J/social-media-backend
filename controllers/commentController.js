@@ -50,19 +50,57 @@ exports.toggleLikeComment = async (req, res) => {
   }
 };
 
-// Edit a comment
-exports.editComment = async (req, res) => {
-  const { text } = req.body;
-  try {
-    const comment = await Comment.findById(req.params.commentId);
+// // Edit a comment
+// exports.editComment = async (req, res) => {
+//   const { text } = req.body;
+//   try {
+//     const comment = await Comment.findById(req.params.commentId);
 
-    if (!comment || comment.user.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Not authorized" });
+//     if (!comment || comment.user.toString() !== req.user._id.toString()) {
+//       return res.status(403).json({ message: "Not authorized" });
+//     }
+
+//     comment.text = text;
+//     await comment.save();
+//     res.json({ message: "Comment updated", comment });
+//   } catch (err) {
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// // Delete a comment
+// exports.deleteComment = async (req, res) => {
+//   try {
+//     const comment = await Comment.findById(req.params.commentId);
+
+//     if (!comment || comment.user.toString() !== req.user._id.toString()) {
+//       return res.status(403).json({ message: "Not authorized" });
+//     }
+
+//     await comment.deleteOne();
+//     res.json({ message: "Comment deleted" });
+//   } catch (err) {
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+// Update a comment
+exports.updateComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const { text } = req.body;
+
+    const comment = await Comment.findById(commentId);
+    if (!comment) return res.status(404).json({ message: "Comment not found" });
+
+    if (comment.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Unauthorized" });
     }
 
     comment.text = text;
     await comment.save();
-    res.json({ message: "Comment updated", comment });
+
+    res.json({ message: "Comment updated successfully", comment });
   } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
@@ -71,14 +109,18 @@ exports.editComment = async (req, res) => {
 // Delete a comment
 exports.deleteComment = async (req, res) => {
   try {
-    const comment = await Comment.findById(req.params.commentId);
+    const { commentId } = req.params;
 
-    if (!comment || comment.user.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Not authorized" });
+    const comment = await Comment.findById(commentId);
+    if (!comment) return res.status(404).json({ message: "Comment not found" });
+
+    if (comment.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Unauthorized" });
     }
 
     await comment.deleteOne();
-    res.json({ message: "Comment deleted" });
+
+    res.json({ message: "Comment deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
