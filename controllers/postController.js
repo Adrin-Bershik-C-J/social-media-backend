@@ -1,5 +1,6 @@
 const Post = require("../models/Post");
 const cloudinary = require("../config/cloudinary");
+const User = require("../models/User");
 
 exports.createPost = async (req, res) => {
   try {
@@ -225,5 +226,23 @@ exports.editPost = async (req, res) => {
     res.json(post);
   } catch (err) {
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+exports.getUserPostsByUsername = async (req, res) => {
+  try {
+    const { username } = req.params;
+
+    const user = await User.findOne({ username });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const posts = await Post.find({ user: user._id })
+      .populate("user", "name username profilePicture")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ posts });
+  } catch (err) {
+    console.error("Error fetching user posts:", err);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };

@@ -4,7 +4,7 @@ const {
   createPost,
   getAllPosts,
   likePost,
-  commentPost,
+  getUserPostsByUsername,
   deletePost,
   getFeedPosts,
   editPost,
@@ -15,9 +15,9 @@ const upload = require("../middlewares/upload");
 router.post("/", protect, upload.array("files", 6), createPost);
 router.get("/", protect, getAllPosts);
 router.post("/:id/like", protect, likePost);
-// router.post("/:id/comment", protect, commentPost);
 router.delete("/:id", protect, deletePost);
 router.get("/feed", protect, getFeedPosts);
 router.put("/edit/:id", protect, editPost);
+router.get("/user/:username", protect, getUserPostsByUsername);
 
 module.exports = router;
