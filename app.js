@@ -6,20 +6,12 @@ require("dotenv").config();
 
 const app = express();
 
-const allowedOrigins = ["http://localhost:5173", "https://adrinet.vercel.app"];
-
-const corsOptions = {
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  credentials: true,
-};
-
-app.use(cors(corsOptions));
+app.use(
+  cors({
+    origin: ["https://adrinet.vercel.app", "http://localhost:5173"], // or use a function to whitelist multiple
+    credentials: true,
+  })
+);
 
 app.use(express.json());
 // app.use(passport.initialize());
