@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const Post = require("../models/Post");
 const cloudinary = require("cloudinary").v2;
 
 exports.getProfile = async (req, res) => {
@@ -148,19 +149,26 @@ exports.getHomeFollowers = async (req, res) => {
 exports.getUserDetails = async (req, res) => {
   try {
     const { username } = req.params;
+    const currentUserId = req.user?.id; // requires auth middleware
 
     const user = await User.findOne({ username })
-      .select("name username bio profilePicture followers following") // exclude password
-      .populate("followers", "username profilePicture")
-      .populate("following", "username profilePicture");
+      .select("name username bio profilePicture followers following");
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    res.status(200).json({ user });
-  } catch (error) {
-    console.error("Error in getUserDetails:", error);
+    const posts = await Post.find({ user: user._id })
+      .populate("user", "name username profilePicture")
+      .sort({ createdAt: -1 });
+
+    const enrichedPosts = posts.map((post) => ({
+      ...post.toObject(),
+      likeCount: post.likes.length,
+      isLiked: currentUserId ? post.likes.includes(currentUserId) : false,
+    }));
+
+    res.status(200).json({ user, posts: enrichedPosts });
+  } catch (err) {
+    console.error("Error fetching user details:", err);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };

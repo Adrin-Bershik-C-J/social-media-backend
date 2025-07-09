@@ -25,6 +25,6 @@ router.put(
   uploadProfilePicture
 );
 router.get("/getHomeFollowers", protect, getHomeFollowers);
-router.get("/user/:username", getUserDetails);
+router.get("/user/:username",protect, getUserDetails);
 
 module.exports = router;
