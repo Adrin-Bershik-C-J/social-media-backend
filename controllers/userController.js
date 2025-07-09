@@ -149,7 +149,7 @@ exports.getHomeFollowers = async (req, res) => {
 exports.getUserDetails = async (req, res) => {
   try {
     const { username } = req.params;
-    const currentUserId = req.user?.id; // requires auth middleware
+    const currentUserId = req.user?._id;
 
     const user = await User.findOne({ username })
       .select("name username bio profilePicture followers following");
@@ -166,9 +166,19 @@ exports.getUserDetails = async (req, res) => {
       isLiked: currentUserId ? post.likes.includes(currentUserId) : false,
     }));
 
-    res.status(200).json({ user, posts: enrichedPosts });
+    // Send whether logged-in user is following this profile
+    const isFollowing = currentUserId
+      ? user.followers.map(String).includes(currentUserId.toString())
+      : false;
+
+    res.status(200).json({
+      user,
+      posts: enrichedPosts,
+      isFollowing,
+    });
   } catch (err) {
     console.error("Error fetching user details:", err);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
