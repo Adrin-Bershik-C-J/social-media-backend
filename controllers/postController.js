@@ -1,62 +1,57 @@
 const Post = require("../models/Post");
+const Notification = require("../models/Notification");
 const cloudinary = require("../config/cloudinary");
 const User = require("../models/User");
+const { pushBulkNotifications, pushNotification } = require("../utils/notify");
+const { io } = require("../utils/socket");
 
 exports.createPost = async (req, res) => {
   try {
-    console.log("Request body:", req.body);
-    console.log("Files received:", req.files?.length || 0);
-    console.log("User:", req.user._id);
-
-    const { caption } = req.body;
+    const { caption = "" } = req.body;
     const files = req.files || [];
+
     let imageUrls = [];
     let videoUrl = "";
 
-    // Process file uploads
-    if (files.length > 0) {
-      const uploadPromises = files.map(async (file) => {
-        const isVideo = file.mimetype.startsWith("video/");
+    /* ────────────── 1. Upload to Cloudinary ────────────── */
+    if (files.length) {
+      const uploads = await Promise.all(
+        files.map(
+          (file) =>
+            new Promise((resolve, reject) => {
+              const isVideo = file.mimetype.startsWith("video/");
+              cloudinary.uploader
+                .upload_stream(
+                  {
+                    resource_type: isVideo ? "video" : "image",
+                    folder: "posts",
+                  },
+                  (err, result) => {
+                    if (err) return reject(err);
+                    resolve({
+                      url: result.secure_url,
+                      type: isVideo ? "video" : "image",
+                    });
+                  }
+                )
+                .end(file.buffer);
+            })
+        )
+      );
 
-        return new Promise((resolve, reject) => {
-          const stream = cloudinary.uploader.upload_stream(
-            {
-              resource_type: isVideo ? "video" : "image",
-              folder: "posts",
-            },
-            (error, result) => {
-              if (error) {
-                console.error("Cloudinary upload error:", error);
-                return reject(error);
-              }
-              resolve({
-                url: result.secure_url,
-                type: isVideo ? "video" : "image",
-              });
-            }
-          );
-          stream.end(file.buffer);
-        });
-      });
+      // classify + validate
+      uploads.forEach(({ url, type }) =>
+        type === "image" ? imageUrls.push(url) : (videoUrl = url)
+      );
 
-      const uploads = await Promise.all(uploadPromises);
-
-      uploads.forEach(({ url, type }) => {
-        if (type === "image") imageUrls.push(url);
-        else if (type === "video") videoUrl = url;
-      });
-
-      // Validation
-      if (imageUrls.length > 5) {
+      if (imageUrls.length > 5)
         return res.status(400).json({ message: "Max 5 images allowed." });
-      }
 
-      const videoCount = uploads.filter((u) => u.type === "video").length;
-      if (videoCount > 1) {
+      if (uploads.filter((u) => u.type === "video").length > 1)
         return res.status(400).json({ message: "Only one video allowed." });
-      }
     }
 
+    /* ────────────── 2. Persist Post ────────────── */
     const post = await Post.create({
       user: req.user._id,
       caption,
@@ -64,21 +59,38 @@ exports.createPost = async (req, res) => {
       video: videoUrl,
     });
 
-    // Populate user info for response
-    await post.populate("user", "name username");
-    res.status(201).json(post);
-  } catch (err) {
-    console.error("Detailed error:", err);
+    await post.populate("user", "name username profilePicture");
 
-    // Only send response if not already sent
+    /* ────────────── 3. Send response ASAP ────────────── */
+    res.status(201).json(post); // 👉 client unblocked
+
+    /* ────────────── 4. Fire‑and‑forget follower notifications ────────────── */
+    setImmediate(async () => {
+      try {
+        const { followers } = await User.findById(req.user._id)
+          .select("followers")
+          .lean();
+
+        if (!followers?.length) return;
+
+        // Create notifications for all followers
+        const notifications = followers.map((fid) => ({
+          recipient: fid,
+          sender: req.user._id,
+          type: "new_post",
+          post: post._id,
+        }));
+
+        // Use bulk notification utility
+        await pushBulkNotifications(notifications);
+      } catch (err) {
+        console.error("notify followers error:", err);
+      }
+    });
+  } catch (err) {
+    console.error("createPost error:", err);
     if (!res.headersSent) {
-      res.status(500).json({
-        message: "Server error",
-        error:
-          process.env.NODE_ENV === "development"
-            ? err.message
-            : "Internal server error",
-      });
+      res.status(500).json({ message: "Server error" });
     }
   }
 };
@@ -102,30 +114,43 @@ exports.getAllPosts = async (req, res) => {
   }
 };
 
+// controllers/postController.js & userController.js
 exports.likePost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+
     const userId = req.user._id;
+    const liked = !post.likes.includes(userId);
 
-    let liked;
-    if (!post.likes.includes(userId)) {
-      post.likes.push(userId);
-      liked = true;
-    } else {
-      post.likes.pull(userId);
-      liked = false;
-    }
-
+    liked ? post.likes.push(userId) : post.likes.pull(userId);
     await post.save();
 
+    /* send response first */
     res.json({
       message: liked ? "Post liked" : "Like removed",
       likeCount: post.likes.length,
       isLiked: liked,
     });
+
+    /* async notification - only when liking (not unliking) and not own post */
+    if (liked && String(post.user) !== String(userId)) {
+      setImmediate(async () => {
+        try {
+          await pushNotification({
+            recipient: post.user,
+            sender: userId,
+            type: "like_post",
+            post: post._id,
+          });
+        } catch (err) {
+          console.error("Failed to send like notification:", err);
+        }
+      });
+    }
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+    console.error("likePost error:", err);
+    if (!res.headersSent) res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -245,4 +270,13 @@ exports.getUserPostsByUsername = async (req, res) => {
     console.error("Error fetching user posts:", err);
     res.status(500).json({ message: "Internal Server Error" });
   }
+};
+
+exports.getSinglePost = async (req, res) => {
+  const post = await Post.findById(req.params.id)
+    .populate("user", "name username profilePicture")
+    .lean();
+
+  if (!post) return res.status(404).json({ message: "Post not found" });
+  res.json(post);
 };

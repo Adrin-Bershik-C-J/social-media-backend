@@ -1,11 +1,15 @@
+const http = require("http");
 const app = require("./app");
 const connectDB = require("./config/db");
-// require("dotenv").config();
+const { init } = require("./utils/socket");
 
 const PORT = process.env.PORT || 5000;
 
 connectDB().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  const server = http.createServer(app); // ← native HTTP wrapper
+  init(server); // ← boot Socket.IO
+
+  server.listen(PORT, () => {
+    console.log(`REST  +  Socket.IO running on http://localhost:${PORT}`);
   });
 });

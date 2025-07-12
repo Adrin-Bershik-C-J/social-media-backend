@@ -1,6 +1,8 @@
 const User = require("../models/User");
 const Post = require("../models/Post");
 const cloudinary = require("cloudinary").v2;
+const { pushNotification } = require("../utils/notify");
+const { io } = require("../utils/socket");
 
 exports.getProfile = async (req, res) => {
   const user = req.user;
@@ -25,52 +27,59 @@ exports.toggleFollow = async (req, res) => {
   const targetUserId = req.params.id;
   const currentUserId = req.user._id;
 
-  // Prevent self-following
-  if (currentUserId.toString() === targetUserId) {
+  if (String(currentUserId) === targetUserId) {
     return res.status(400).json({ message: "You can't follow yourself" });
   }
 
   try {
-    const targetUser = await User.findById(targetUserId);
-    const currentUser = await User.findById(currentUserId);
+    /* 1. Check if target user exists and get current follow status */
+    const [targetUser, currentUser] = await Promise.all([
+      User.findById(targetUserId).select("followers"),
+      User.findById(currentUserId).select("following"),
+    ]);
 
-    // Check if target user exists
     if (!targetUser) {
       return res.status(404).json({ message: "User not found" });
     }
 
     const isFollowing = currentUser.following.includes(targetUserId);
 
+    /* 2. Update follow relationships */
     if (isFollowing) {
-      // Unfollow: Remove from both arrays
       currentUser.following.pull(targetUserId);
       targetUser.followers.pull(currentUserId);
-
-      await Promise.all([currentUser.save(), targetUser.save()]);
-
-      res.json({
-        message: "User unfollowed",
-        isFollowing: false,
-        followersCount: targetUser.followers.length,
-        followingCount: currentUser.following.length,
-      });
     } else {
-      // Follow: Add to both arrays
       currentUser.following.push(targetUserId);
       targetUser.followers.push(currentUserId);
+    }
 
-      await Promise.all([currentUser.save(), targetUser.save()]);
+    await Promise.all([currentUser.save(), targetUser.save()]);
 
-      res.json({
-        message: "User followed",
-        isFollowing: true,
-        followersCount: targetUser.followers.length,
-        followingCount: currentUser.following.length,
+    /* 3. Send response */
+    res.json({
+      message: isFollowing ? "User unfollowed" : "User followed",
+      isFollowing: !isFollowing,
+      followersCount: targetUser.followers.length,
+      followingCount: currentUser.following.length,
+    });
+
+    /* 4. Send notification only when newly followed */
+    if (!isFollowing) {
+      setImmediate(async () => {
+        try {
+          await pushNotification({
+            recipient: targetUserId,
+            sender: currentUserId,
+            type: "follow",
+          });
+        } catch (err) {
+          console.error("Failed to send follow notification:", err);
+        }
       });
     }
   } catch (err) {
-    console.error("Toggle follow error:", err);
-    res.status(500).json({ message: "Server error" });
+    console.error("toggleFollow error:", err);
+    if (!res.headersSent) res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -151,8 +160,9 @@ exports.getUserDetails = async (req, res) => {
     const { username } = req.params;
     const currentUserId = req.user?._id;
 
-    const user = await User.findOne({ username })
-      .select("name username bio profilePicture followers following");
+    const user = await User.findOne({ username }).select(
+      "name username bio profilePicture followers following"
+    );
 
     if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -181,4 +191,3 @@ exports.getUserDetails = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
